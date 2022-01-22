@@ -1,0 +1,327 @@
+---
+title: "BIOST 561 Homework 3"
+author: "Hantong Hu"
+date: "05/14/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+### Setting up the packages, options we'll need:
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Responses 
+
+## Problem 1
+
+1.1 Below are histograms by using bootstrap generic function on numeric and stratified objects using the mean, the median, and the standard deviation as the statistics of interest. The stratified and numeric objects are the same objects used in class (stratified: strata a and b, rnorm(5) in a and rnorm(5,3) in b; numeric: rnorm(5)), both bootstrapped for 100 times. See appendix for bootstrap methods.
+
+```{r Q1.1, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.1
+stratified <- function(y, strata) {
+  if (!is.numeric(y)) stop("'y' must be numeric")
+  if (!is.factor(strata)) stop("'strata' must be a factor")
+  if (length(y) != length(strata)) stop("'y' and 'strata' must have equal length")
+  
+  structure(list(y=y, strata=strata), class = "stratified")
+}
+
+bootstrap <- function(object, ...) UseMethod("bootstrap")
+
+bootstrap.numeric <- function(object, nboot, stat){
+  if (!is( object, "numeric"))
+    stop( "bootstrap.numeric only applies to objects of class 'numeric'")
+  if ( nboot < 1 | is.infinite(nboot) ) 
+    stop( "'nboot' should be a positive integer" )
+  
+  n <- length(object)
+  boot_samp <- replicate(nboot, sample(object, size=n, replace=TRUE))
+  colnames(boot_samp) <- paste("bootstrap", 1:nboot, sep="")
+    
+  boot_stat <- apply(boot_samp, 2, stat)
+  return(boot_stat)
+}
+
+
+bootstrap.stratified <- function(object, nboot, stat){
+  if (!is( object, "stratified"))
+    stop( "bootstrap.stratified only applies to objects of class 'stratified'" )
+  if ( nboot < 1 | is.infinite(nboot) ) 
+    stop( "'nboot' should be a positive integer" )
+  
+  tapply(object$y, object$strata, bootstrap.numeric, nboot, stat)
+  
+}
+
+my_stra <- stratified(y = c(rnorm(5), rnorm(5, 3)), 
+                        strata = factor(rep(c("a","b"), each=5)) ) # works
+stra_mean <- bootstrap(my_stra,100,mean)
+stra_med <- bootstrap(my_stra,100,median)
+stra_sd <- bootstrap(my_stra,100,sd)
+
+my_num <- rnorm(5)
+num_mean <- bootstrap(my_num,100,mean)
+num_med <- bootstrap(my_num,100,median)
+num_sd <- bootstrap(my_num,100,sd)
+
+par(mfrow=c(3,3), cex=0.5)
+hist(unlist(stra_mean[1]), main = "Histogram of stratified mean, Strata a")
+hist(unlist(stra_mean[2]), main = "Histogram of stratified mean, Strata b")
+hist(unlist(stra_med[1]), main = "Histogram of stratified median, Strata a")
+hist(unlist(stra_med[2]), main = "Histogram of stratified median, Strata b")
+hist(unlist(stra_sd[1]), main = "Histogram of stratified sd, Strata a")
+hist(unlist(stra_sd[2]), main = "Histogram of stratified sd, Strata b")
+hist(num_mean, main = "Histogram of numeric mean")
+hist(num_med, main = "Histogram of numeric median")
+hist(num_sd, main = "Histogram of numeric sd")
+
+```
+
+1.2 Using the same numeric and stratified objects in 1.1 but bootstrapped for 10 times and take the 5th moment, the results are shown below.
+
+```{r Q1.2, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.2
+moment <- function(x, k){
+  (1/length(x))*sum((x-mean(x))^k)
+}
+
+bootstrap <- function(object, ...) UseMethod("bootstrap")
+
+bootstrap.numeric <- function(object, nboot, stat, parameter=NULL){
+  if (!is( object, "numeric"))
+    stop( "bootstrap.numeric only applies to objects of class 'numeric'")
+  if ( nboot < 1 | is.infinite(nboot) ) 
+    stop( "'nboot' should be a positive integer" )
+  
+  n <- length(object)
+  boot_samp <- replicate(nboot, sample(object, size=n, replace=TRUE))
+  colnames(boot_samp) <- paste("bootstrap", 1:nboot, sep="")
+    
+  if (is.null(parameter)){
+      boot_stat <- apply(boot_samp, 2, stat)
+    } else {
+      boot_stat <- apply(boot_samp, 2, stat, parameter)
+  }
+  return(boot_stat)
+}
+
+
+bootstrap.stratified <- function(object, nboot, stat, parameter=NULL){
+  if (!is( object, "stratified"))
+    stop( "bootstrap.stratified only applies to objects of class 'stratified'" )
+  if ( nboot < 1 | is.infinite(nboot) ) 
+    stop( "'nboot' should be a positive integer" )
+  
+  if (is.null(parameter)){
+    boot_stat <- tapply(object$y, object$strata, bootstrap.numeric, nboot, stat)
+  } else {
+    boot_stat <- tapply(object$y, object$strata, bootstrap.numeric, nboot, stat, parameter)
+  }
+  
+  return(boot_stat)
+  
+}
+
+my_num <- rnorm(5)
+num_mom <- bootstrap(my_num,10,moment,5)
+
+my_stra <- stratified(y = c(rnorm(5), rnorm(5, 3)), 
+                        strata = factor(rep(c("a","b"), each=5)) )
+stra_mom <- bootstrap(my_stra,10,moment,5)
+
+print(num_mom)
+print(stra_mom)
+```
+
+## Problem 2
+
+```{r Q2, message=F, eval=F}
+### -----------------------------------------------------------
+### Q2
+## Generate df
+set.seed(1254)
+df <- purrr::map(1:5, # we'll generate five variables
+                 ~sample( # generate random values
+                   sample(2:5,1), # a random number categories between 2:5
+                   100, # number of draws
+                   rep = TRUE # sample with replications
+                   )
+                 )
+
+# letters instead of numbers to denote categories
+df <- purrr::map(df, ~LETTERS[.x])
+
+df <- data.frame(df) # transform list to data frame
+
+names(df) <- paste("v", 1:5, sep="")
+
+# generate a response variable from a normal linear model
+df$v6 <- with(df, rnorm(nrow(df), 2*(v1=="B") - 1*(v5=="B")))
+
+head(df)
+
+# to fit a linear model, at this point, we would typically use
+lm(v6 ~ v1 + v2 + v5, data=df)
+####################################################
+
+## Automated process, needs comment line by line
+library(purrr)
+# Define the maximal (largest) model we are willing to consider
+model <- v6 ~ v1 + v2 + v5
+
+# Show class of the object model (formula)
+class(model)
+
+# Turn the object model into a charater string
+model <- deparse(model)
+
+# Split the character string (model) into 2 character strings, separated by ~, 
+# so the two character strings are "v6" and "v1+v2+v5". Output is a list with one 
+# element containing 2 strings
+model <- strsplit(model, " *~ *")
+
+# Define the response variable (resp_var) by assigning the string "v6" to it
+resp_var <- model[[1]][1]
+
+# Define the predictor variables (lin_pred) by assigning the string "v1+v2+v5" to it
+lin_pred <- model[[1]][2]
+
+# Split the character string (lin_pred) into a list of 3 character strings, separated by
+# +, so the 3 character strings are "v1", "v2" and "v5". By getting the contents in the 
+# first element in list, indep_vars is a vector of these 3 charater strings
+indep_vars <- strsplit(lin_pred, " *\\+ *")[[1]]
+
+# Create a list with 3 elements, all containing c(TRUE, FALSE)
+TF_factors <- purrr::map(seq_along(indep_vars), ~c(TRUE,FALSE))
+
+# Demonstrate all possible combinations of TRUE/FALSE for 3 elements. Output is a matrix
+logical_subsets <- as.matrix(expand.grid(TF_factors))
+
+# Create a function that takes the x-th variable from indep_vars. If multiple variables 
+# are picked, combine them with the notation " + "
+get_linpred <- function(x) paste(indep_vars[x], collapse=" + ")
+
+# Apply the above function to logical_subsets horizontally, e.g. if a row in 
+# logical_subsets shows "T T F", then returns a character string of "v1 + v2"
+lin_preds <- apply(logical_subsets, 1, get_linpred)
+
+# Alternatively: use map method to do the same job as apply method
+# lin_preds <- purrr::map_chr(1:nrow(logical_subsets), 
+#                             ~get_linpred(logical_subsets[.x,]))
+
+# For row that shows "F F F"/no variable is picked, assign value "1" to it
+lin_preds[lin_preds == ""] <- "1"
+
+# Paste the response variable (v6) back to the different combinations of predictor variables
+subset_models <- paste(resp_var, "~", lin_preds)
+
+# Use map method (map_dbl so it returns double data) to fit the different combinations.
+# Different combinations are first turned from character to expressions and then 
+# evaluated. The adjusted R square value for each fitted model is returned
+purrr::map_dbl(subset_models, 
+               ~summary(lm(eval(parse(text=.x)), df))$adj.r.squared)
+```
+
+## Problem 3
+
+3.1  
+
+```{r Q3.1, message=F, echo=T}
+### -----------------------------------------------------------
+### Q3.1
+m <- 1000
+n <- 50
+X <- matrix(rnorm(m * n, mean = 10, sd = 3), nrow = m)
+grp <- rep(1:2, each = n / 2)
+
+map_ttest <- purrr::map_dbl(1:nrow(X), ~t.test(X[.x,grp == 1], X[.x,grp == 2])$statistic)
+head(map_ttest)
+```
+
+3.2 
+
+```{r Q3.2, message=F, echo=T}
+### -----------------------------------------------------------
+### Q3.2
+my_ttest <- function(x, grp) {
+  t_stat <- function(x) {
+    m <- mean(x)
+    n <- length(x)
+    var <- sum((x - m)^2) / (n - 1)
+    list(m = m, n = n, var = var)
+  }
+  g1 <- t_stat(x[grp == 1])
+  g2 <- t_stat(x[grp == 2])
+  se_total <- sqrt(g1$var / g1$n + g2$var / g2$n)
+  (g1$m - g2$m) / se_total
+}
+
+map_myttest <- purrr::map_dbl(1:nrow(X), ~my_ttest(X[.x,],grp))
+head(map_myttest)
+```
+
+3.3  
+
+```{r Q3.3, message=F, echo=T}
+### -----------------------------------------------------------
+### Q3.3
+vectorized_ttest <- function(X, grp) {
+  var1 <- rowSums((X[,grp==1] - rowMeans(X[,grp==1]))^2) / (ncol(X[,grp==1]) - 1)
+  var2 <- rowSums((X[,grp==2] - rowMeans(X[,grp==2]))^2) / (ncol(X[,grp==2]) - 1)
+  
+  (rowMeans(X[,grp==1]) - rowMeans(X[,grp==2])) / 
+    sqrt(var1/ncol(X[,grp==1]) + var2/ncol(X[,grp==2]))
+  
+}
+
+vec_test <- vectorized_ttest(X,grp)
+head(vec_test)
+```
+
+3.4 The naive approach and the first map_dbl approach are similar in performance. They use similar functions and callees, which all spent similar time. The map_dbl using my_ttest method is more efficient by using less functions and spent much less time in each callees. The sample interval and sampling time for these three methods are very close. The vectorized method is the most efficient since it did not record any functions or callees spending time, and it has 0 sampling time.
+
+```{r Q3.4, message=F, echo=T, warning=F}
+### -----------------------------------------------------------
+### Q3.4
+library(microbenchmark)
+
+tmp1 <- tempfile()
+Rprof(tmp1)
+for (i in 1:m) {
+  t.test(X[i, grp == 1], X[i, grp == 2])$statistic
+}
+Rprof(NULL)
+summaryRprof(tmp1)
+
+tmp2 <- tempfile()
+Rprof(tmp2)
+map_ttest <- purrr::map_dbl(1:nrow(X), ~t.test(X[.x,grp == 1], X[.x,grp == 2])$statistic)
+Rprof(NULL)
+summaryRprof(tmp2)
+
+tmp3 <- tempfile()
+Rprof(tmp3)
+map_myttest <- purrr::map_dbl(1:nrow(X), ~my_ttest(X[.x,],grp))
+Rprof(NULL)
+summaryRprof(tmp3)
+
+tmp4 <- tempfile()
+Rprof(tmp4)
+vec_test <- vectorized_ttest(X,grp)
+Rprof(NULL)
+summaryRprof(tmp4)
+```
+
+\pagebreak
+
+## Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```

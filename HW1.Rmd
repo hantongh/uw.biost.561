@@ -1,0 +1,275 @@
+---
+title: "BIOST 561 Homework 1"
+author: "Hantong Hu"
+date: "04/16/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+### Setting up the packages, options we'll need:
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=F}
+### -----------------------------------------------------------
+### Reading in the data. 
+# library(tidyverse)
+# mri_data <- read_csv("C:/Users/second/Desktop/BIOST 515/HW/Datasets/mri-2021.csv")
+```
+
+# Responses 
+
+## Problem 2
+
+### 2.1  
+
+my_list[["a1"]]: returns the content of a1, which is b1 and b2 under a1.
+
+my_list[["a1"]][["b2"]]: returns the content of b2, which is c1 and c2 under b2.
+
+my_list[["a1"]][["b2"]][["c1"]]: returns the content of c1 under a1 and b2, which is "a1b2c1".
+
+my_list[[c(1,2)]]: returns the content of b2, which is c1 and c2 under b2.
+
+my_list[[c(1,2,1)]]: returns the content of c1 under a1 and b2, which is "a1b2c1".
+
+my_list[[c("a1", "b2")]]: returns the content of b2, which is c1 and c2 under b2.
+
+my_list[[c("a1", "b2", "c1")]]: returns the content of c1 under a1 and b2, which is "a1b2c1".
+
+my_list[["a1"]][["b2"]], my_list[[c(1,2)]], my_list[[c("a1", "b2")]] are equivalent.
+
+my_list[["a1"]][["b2"]][["c1"]], my_list[[c(1,2,1)]], my_list[[c("a1", "b2", "c1")]] are equivalent.
+
+```{r Q2.1, message=F, results='hide'}
+### -----------------------------------------------------------
+### Q2.1
+my_list <- list(
+  a1 = list(b1 = list(c1="a1b1c1", c2="a1b1c2"),
+            b2 = list(c1="a1b2c1", c2="a1b2c2")),
+  a2 = 1
+)
+
+my_list[["a1"]]
+my_list[["a1"]][["b2"]]
+my_list[["a1"]][["b2"]][["c1"]]
+my_list[[c(1,2)]]
+my_list[[c(1,2,1)]]
+my_list[[c("a1", "b2")]]
+my_list[[c("a1", "b2", "c1")]]
+```
+
+### 2.2
+
+my_list[c("a1", "b2", "c1")] returns the 3 elements (a1, b2, c1) of my_list, but since my_list only has elements a1 and a2, this line can only return a1 and the other 2 elements are returned as NA.
+
+my_list[[c("a1", "b2", "c1")]] returns the content of c1 under a1 and b2, so it will return "a1b2c1".
+
+my_list[c(1,2)] returns the first and second elements (a1, a2) of my_list.
+
+my_list[[c(1,2)]] returns the content of b2 under a1, so it will return c1 and c2 under b2 and a1.
+
+```{r Q2.2, message=F, results='hide'}
+### -----------------------------------------------------------
+### Q2.2
+my_list[c("a1", "b2", "c1")]
+my_list[[c("a1", "b2", "c1")]]
+
+my_list[c(1,2)]
+my_list[[c(1,2)]]
+```
+
+## Problem 3
+
+### 3.1  
+
+```{r Q3.1, message=F}
+### -----------------------------------------------------------
+### Q3.1
+visits <- data.frame(patient_id = c(1:5,5),
+                     treatment_id = c("a","b","a","c","a","c"),
+                     n_visits = c(2,1,2,1,3,1))
+patients <- data.frame(patient_id = 1:6, name = LETTERS[1:6], age = rpois(6,50))
+treatments <- data.frame(patient_id = c("a","b","c"), name = tail(letters,3),
+                         cost = c(3,1000,100))
+
+X_ids <- data.frame(visits[c(rep(c(1:6), times = c(visits$n_visits))),c(1,2)])
+X_ids
+```
+
+### 3.2 
+
+```{r Q3.2, message=F}
+### -----------------------------------------------------------
+### Q3.2
+X <- data.frame(patient_name = patients[match(X_ids$patient_id, patients$patient_id),"name"],
+                treatment_name = treatments[match(X_ids$treatment_id, treatments$patient_id),"name"])
+X$age <- patients[match(X$patient_name, patients$name),"age"]
+
+patients
+X
+```
+
+### 3.3 
+
+```{r Q3.3, message=F}
+### -----------------------------------------------------------
+### Q3.3
+X_order <- X[order(X$age),]
+X_order
+```
+
+### 3.4
+
+```{r Q3.4, message=F}
+### -----------------------------------------------------------
+### Q3.4
+visit_for_trt <- function(trt){
+  return(X[which(X$treatment_name==trt),])
+}
+
+visit_for_trt("x")
+```
+
+## Problem 4
+
+### 4.1  
+
+state.x77 is a matrix with double type data.
+
+```{r Q4.1, message=F, warning=F}
+### -----------------------------------------------------------
+### Q4.1
+library(MASS)
+data(state) # Load dataset
+
+class(state.x77)
+typeof(state.x77)
+```
+
+### 4.2
+
+
+```{r Q4.2, message=F}
+### -----------------------------------------------------------
+### Q4.2
+mean <- apply(state.x77, 2, mean)
+std <- apply(state.x77, 2, sd)
+
+mat4.2 <- rbind(mean, std)
+mat4.2
+```
+
+### 4.3
+
+lapply returns a list of the same length as X, each element of which is the result of applying FUN to the corresponding element of X.
+
+sapply is a user-friendly version and wrapper of lapply by default returning a vector, matrix or, if simplify = "array", an array if appropriate.
+
+```{r Q4.3, message=F}
+### -----------------------------------------------------------
+### Q4.3
+state.x77.df <- as.data.frame(state.x77)
+
+mean_df <- sapply(state.x77.df, mean)
+std_df <- sapply(state.x77.df, sd)
+mat4.3 <- rbind(mean_df, std_df)
+mat4.3
+```
+
+### 4.4
+
+From the system process time, adding a column to a matrix is more efficient than to a data frame. It might be due to that data frame needs to check the length of vector before adding the column but matrix does not need to.
+
+```{r Q4.4, message=F}
+### -----------------------------------------------------------
+### Q4.2
+start.df <- Sys.time()
+state.x77.df$Density <- state.x77.df$Population / state.x77.df$Area
+end.df <- Sys.time()
+df.diff <- end.df - start.df
+
+start.mat <- Sys.time()
+state.x77.dens <- cbind(state.x77, state.x77[,"Population"] / state.x77[,"Area"])
+end.mat <- Sys.time()
+mat.diff <- end.mat - start.mat
+
+paste("Data Frame process time is", df.diff, "secs")
+paste("Matrix process time is", mat.diff, "secs")
+```
+
+### 4.5
+
+
+```{r Q4.5, message=F}
+### -----------------------------------------------------------
+### Q4.5
+state.x77.df$region <- state.region
+
+max.dens <- tapply(state.x77.df$Density, state.x77.df$region, FUN = max)
+min.dens <- tapply(state.x77.df$Density, state.x77.df$region, FUN = min)
+mean.dens <- tapply(state.x77.df$Density, state.x77.df$region, FUN = mean)
+
+rbind(max.dens, min.dens, mean.dens)
+```
+
+## Problem 5
+
+```{r Q5, message=F}
+### -----------------------------------------------------------
+### Q5
+`modif<-` <- function(y,value) {
+  y[which(y %in% NA)] <- value
+  y
+}
+
+x <- c(1:5,NA,7,8,NA,10)
+modif(x) <- 2
+x
+```
+
+## Problem 6
+
+A variable a is created in the global environment and the value 10 is assigned to it.
+
+The variable pi is searched in the global environment, but then a variable x is created in the global environment and the value pi is assigned to it.
+
+A variable z is created in the global environment and the value 10 is assigned to it.
+
+Variables x and n are created and assigned value (of 2 and 2 in this case) in the execution environment. 
+A new value from calculations of x=2 and n=2 is then assigned to x (still in the execution environment). 
+A variable z is created in the execution environment and the value of x is assigned to it.
+
+A variable w is created in the execution environment and the value of z*a (z is in the execution environment and a is in the global environment) is assigned to it.
+
+```{r Q6, message=F}
+### -----------------------------------------------------------
+### Q6
+rm(list = ls())
+
+a <- 10
+x <- pi
+z <- 20
+
+fn <- function(x,n){
+  x <- x^n
+  z <- x
+  w <- z*a
+  return(w)
+}
+
+
+fn(2,2)
+```
+
+\pagebreak
+
+## Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```

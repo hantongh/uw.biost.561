@@ -1,0 +1,177 @@
+---
+title: "BIOST 561 Homework 5"
+author: "Hantong Hu"
+date: "06/11/2021"
+output:
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+### Setting up the packages, options we'll need:
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Responses 
+
+## Problem 1
+
+1. From the data frame flights, for each carrier, compute the average and standard deviation of the arrival delay (variable arr_delay) for the flights from New York (JFK) to Seattle (SEA) and order the output by average arrival delay.
+
+```{r Q1.1, message=F, echo=F, warning=F}
+### -----------------------------------------------------------
+### Q1.1
+library(nycflights13)
+library(tidyverse)
+library(dplyr)
+data(flights)
+
+flight1 <- flights %>% 
+  filter(origin == "JFK", dest == "SEA") %>%
+  group_by(carrier) %>%
+  summarise("mean_arr_delay" = mean(arr_delay, na.rm = T),
+            "sd_arr_delay" = sd(arr_delay, na.rm = T)) %>%
+  arrange(mean_arr_delay)
+
+kable(flight1,
+      caption = "Mean and SD of the arrival delay for the flights (JFK-SEA)")
+```
+
+2. Add a column to the previously computed data frame containing the full name of the airlines (taken from the data frame airlines).
+
+```{r Q1.2, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.2
+data(airlines)
+
+flight2 <- right_join(airlines, flight1, by="carrier")
+kable(flight2,
+      caption = "Mean and SD of the arrival delay for the flights (JFK-SEA) with Carrier Name")
+```
+
+3. For each carrier, compute the average age (from field year in planes) of the aircraft used for the flights from New York (JFK) to Seattle (SEA) in 2013.
+
+```{r Q1.3, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.3
+data(planes)
+
+flight3 <- flights %>% 
+  filter(origin == "JFK", dest == "SEA", year==2013) %>%
+  select(carrier, tailnum)
+plane3 <- planes %>%
+  mutate(age = 2013-year) %>%
+  select(tailnum, age)
+ave_age <- left_join(flight3, plane3, by = "tailnum") %>%
+  group_by(carrier) %>%
+  summarise("mean_age" = mean(age, na.rm = T))
+
+kable(ave_age,
+      caption = "Mean age of the aircraft used for the flights (JFK-SEA) in 2013")
+```
+
+## Problem 2
+
+The accuracy for the two methods are almost the same if evaluated using L2 Norm. However, if evaluated using Support recovery, the accuracy of the simple linear model method is much higher than the LASSO linear model.
+
+```{r Q2.1, message=F, echo=F, warning=F, results='hide', fig.height=4}
+### -----------------------------------------------------------
+### Q2.1
+library(dplyr)
+library(simulator)
+library(glmnet)
+
+# Data generation
+linear_model <- function(n, beta, x_sd, sigma_sq) 
+{
+  new_model(
+    name = "lin_gen_model", 
+    label = sprintf("n = %s, beta = %s, x_sd = %s, sigma_sq = %s", n, beta, x_sd, sigma_sq),
+    params = list(beta = beta, x_sd = x_sd, sigma_sq = sigma_sq, n = n),
+    simulate = function(n, beta, x_sd, sigma_sq, nsim){
+      sim_list <- list()
+      p = length(beta)
+      
+      # Could use map instead
+      for (i in 1:nsim) {
+        x <- matrix(rnorm(n*p, 0, x_sd), nrow = n, ncol = p)
+        y <- x%*%beta + rnorm(n, 0, sqrt(sigma_sq))
+        sim_list[[i]] <- list("x" = x,
+                              "y" = y)
+      }
+      return(sim_list) 
+    })
+}
+
+# Methods
+lse <- new_method("ls_lm", "Least square linear model",
+                  method = function(model, draw) {
+                    yy <- draw$y
+                    xx <- draw$x
+                    fit <- lm(yy ~ xx - 1)
+                    list(betahat = fit$coef)
+                  })
+
+lasso <- new_method("lasso", "Lasso linear model",
+                    method = function(model, draw){
+                      x <- draw$x
+                      y <- draw$y
+                      
+                      cv.out <- cv.glmnet(x,y,alpha=1,nfolds=5)
+                      optimal_lambda = cv.out$lambda[which.min(cv.out$cvm)]
+                      beta_est = as.numeric(glmnet(x,y,alpha=1, lambda = optimal_lambda)$beta)
+                      
+                      list(betahat = beta_est)
+                    })
+
+# Metrics
+sum_squared_error <- 
+  new_metric("L2", 
+             "L2 Norm",
+             metric = function(model, out) {
+               sum((out$betahat - model$beta)^2)
+             })
+
+proportion_est <- 
+  new_metric("sp",
+             "Support recovery",
+             metric = function(model, out) {
+               p = length(model$beta)
+               num_correct = 0
+               for (i in 1:p) {
+                 if (model$beta[i] == 0 & out$betahat[i] == 0){
+                   num_correct = num_correct+1
+                 } else if (model$beta[i] > 0 & out$betahat[i] > 0) {
+                   num_correct = num_correct+1
+                 }
+               }
+               
+               num_correct/p
+             })
+
+
+sim <- new_simulation("ls_sigma", 
+                      "Estimation accuracy") %>%
+  generate_model(linear_model,
+                 n = 40,
+                 sigma_sq = as.list(c(1,4,7,10)),
+                 x_sd = 1,
+                 beta = c(0,1,2,0,0),
+                 vary_along = "sigma_sq") %>%
+  simulate_from_model(nsim = 15, index = 1) %>%
+  run_method(list(lse,lasso)) %>%
+  evaluate(list(sum_squared_error,proportion_est))
+
+plot_eval_by(sim, "L2", varying = "sigma_sq", main = "Estimation accuracy (L2 norm)")
+plot_eval_by(sim, "sp", varying = "sigma_sq", main = "Estimation accuracy (Support recovery)")
+
+```
+
+
+\pagebreak
+
+## Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```

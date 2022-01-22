@@ -1,0 +1,281 @@
+---
+title: "BIOST 561 Homework 2"
+author: "Hantong Hu"
+date: "04/30/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+### Setting up the packages, options we'll need:
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Responses 
+
+## Problem 1: Stochastic gradient descent
+
+### 1.1 
+To implement stochastic gradient descent, I first added a variable (batch, with default value 2) in the function parameter to specify how many subsets we want to use to split the training set. I also added a condition that stops execution if number of subset is larger than number of observations. Another main change is in the loop, where I added another loop for batches, which looks like below:
+
+```{r Q1.1.display, message=F, echo=T, eval=F}
+### -----------------------------------------------------------
+### Q1.1 (main code change)
+for (it in 1:niter)
+  {
+    split.group <- sample(1:batch,size=n,replace=TRUE,prob=rep(1/batch,batch))
+    
+    for (mini_batch in 1:batch){
+      loss.func <- 1/n*sum((y-x%*%beta_gd)^2)
+      loss.func.deri <- -2/n*(y-x%*%beta_gd)
+      
+      loss.func.deri.inbatch <- loss.func.deri[which(split.group %in% mini_batch)]
+      x.inbatch <- x[which(split.group %in% mini_batch),]
+      y.inbatch <- y[which(split.group %in% mini_batch)]
+      
+      
+      beta_gd = beta_gd - learn_rate*t(x.inbatch)%*%loss.func.deri.inbatch
+      # MSE_new = mean((y.inbatch - x.inbatch%*%beta_gd)^2)
+      # print(MSE_new)
+      
+      # if(verbose){...}
+    }
+}
+```
+
+```{r Q1.1, message=F, echo=F, results='hide'}
+### -----------------------------------------------------------
+### Q1.1 (entire code)
+lm_sgd = function(x,y, learn_rate = 0.05, niter = 1000, beta_init = NULL, batch = NULL, verbose = F)
+{
+  p = ncol(x)
+  n = nrow(x)
+  if(nrow(x) != length(y)) stop("Check x,y dimensions")
+  if(nrow(x)<batch) stop("Batch number exceeds number of observations")
+  if(verbose && (ncol(x)>2)) warning("p > 2 -- Plotting only dimension 2")
+  
+  if(is.null(beta_init)) beta_init = runif(p)
+  if(is.null(batch)) batch = 2
+  x1_grid = seq(min(x[,2]),max(x[,2]),length.out = 100)
+  
+  beta_gd = beta_init
+  
+  for (it in 1:niter)
+  {
+    split.group <- sample(1:batch,size=n,replace=TRUE,prob=rep(1/batch,batch))
+    
+    for (mini_batch in 1:batch){
+      loss.func <- 1/n*sum((y-x%*%beta_gd)^2)
+      loss.func.deri <- -2/n*(y-x%*%beta_gd)
+      
+      loss.func.deri.inbatch <- loss.func.deri[which(split.group %in% mini_batch)]
+      x.inbatch <- x[which(split.group %in% mini_batch),]
+      y.inbatch <- y[which(split.group %in% mini_batch)]
+      
+      
+      beta_gd = beta_gd - learn_rate*t(x.inbatch)%*%loss.func.deri.inbatch
+      # MSE_new = mean((y.inbatch - x.inbatch%*%beta_gd)^2)
+      # print(MSE_new)
+      
+      if(verbose)
+      {
+        y_grid_hat = cbind(rep(1,100),x1_grid)%*%beta_gd
+        plot(x[,2],y)
+        lines(x1_grid,y_grid_hat)
+        Sys.sleep(.3)
+      }
+    }
+  }
+  
+  beta_gd
+  
+}
+
+# Test
+n = 30
+p = 1
+
+beta = rep(2,p+1)
+
+x = cbind(rep(1,n), matrix(rnorm(n*p),n,p))
+epsilon = rnorm(n,0,0.1)
+
+y = x%*%beta + epsilon
+
+beta_optim = lm_sgd(x,y,learn_rate = 0.05,niter=200,batch=3,verbose = F)
+```
+
+### 1.2 
+
+The technique is called stochastic because its rate of decrease in loss function is very unstable and doesn't follow a pattern, which creates a feeling of randomness in the process of finding the true beta.
+
+```{r Q1.2, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.2
+lm_sgd_scatter = function(x,y, learn_rate = 0.05, niter = 1000, beta_init = NULL, batch = 2, verbose = F)
+{
+  p = ncol(x)
+  n = nrow(x)
+  if(nrow(x) != length(y)) stop("Check x,y dimensions")
+  if(nrow(x)<batch) stop("Batch number exceeds number of observations")
+  if(verbose && (ncol(x)>2)) warning("p > 2 -- Plotting only dimension 2")
+  
+  if(is.null(beta_init)) beta_init = runif(p)
+  x1_grid = seq(min(x[,2]),max(x[,2]),length.out = 100)
+  
+  beta_gd = beta_init
+  lm_sgd_loss = data.frame()
+  
+  for (it in 1:niter)
+  {
+    split.group <- sample(1:batch,size=n,replace=TRUE,prob=rep(1/batch,batch))
+    
+    for (mini_batch in 1:batch){
+      loss.func <- 1/n*sum((y-x%*%beta_gd)^2)
+      lm_sgd_loss = rbind(lm_sgd_loss, 
+                          data.frame(loss.func, iteration=((it-1)*batch+mini_batch)))
+      
+      loss.func.deri <- -2/n*(y-x%*%beta_gd)
+      
+      loss.func.deri.inbatch <- loss.func.deri[which(split.group %in% mini_batch)]
+      x.inbatch <- x[which(split.group %in% mini_batch),]
+      y.inbatch <- y[which(split.group %in% mini_batch)]
+      
+      
+      beta_gd = beta_gd - learn_rate*t(x.inbatch)%*%loss.func.deri.inbatch
+      # MSE_new = mean((y.inbatch - x.inbatch%*%beta_gd)^2)
+      # print(MSE_new)
+      
+      if(verbose)
+      {
+        y_grid_hat = cbind(rep(1,100),x1_grid)%*%beta_gd
+        plot(x[,2],y)
+        lines(x1_grid,y_grid_hat)
+        Sys.sleep(.3)
+      }
+    }
+  }
+  
+  lm_sgd_loss
+  
+}
+
+lm_gd_scatter = function(x,y, learn_rate = 0.05, niter = 1000, beta_init = NULL, verbose = F)
+{
+  p = ncol(x)
+  n = nrow(x)
+  if(nrow(x) != length(y)) stop("Check x,y dimensions")
+  if(verbose && (ncol(x)>2)) warning("p > 2 -- Plotting only dimension 2")
+  
+  if(is.null(beta_init)) beta_init = runif(p)
+  x1_grid = seq(min(x[,2]),max(x[,2]),length.out = 100)
+  
+  beta_gd = beta_init
+  lm_gd_loss = data.frame()
+  
+  for (it in 1:niter)
+  {
+    loss.func <- 1/n*sum((y-x%*%beta_gd)^2)
+    lm_gd_loss <- rbind(lm_gd_loss, data.frame(loss.func, iteration=it))
+    
+    beta_gd = beta_gd - learn_rate*(-2/n)*t(x)%*%(y-x%*%beta_gd)
+    # MSE_new = mean((y - x%*%beta_gd)^2)
+    # print(MSE_new)
+    
+    if(verbose)
+    {
+      y_grid_hat = cbind(rep(1,100),x1_grid)%*%beta_gd
+      plot(x[,2],y)
+      lines(x1_grid,y_grid_hat)
+      Sys.sleep(.3)
+    }
+  }
+  
+  lm_gd_loss
+  
+}
+
+n = 30
+p = 1
+
+beta = rep(2,p+1)
+
+x = cbind(rep(1,n), matrix(rnorm(n*p),n,p))
+epsilon = rnorm(n,0,0.1)
+
+y = x%*%beta + epsilon
+
+beta_init_sgd <- runif(2)
+beta_init_gd <- runif(2)
+
+lm_sgd_loss = lm_sgd_scatter(x,y,learn_rate = 0.05,
+                             niter=100,batch=3,verbose = F)
+lm_gd_loss = lm_gd_scatter(x,y,learn_rate = 0.05,niter=300,verbose = F)
+
+par(mfrow=c(1,2), cex=0.5)
+plot(lm_sgd_loss$iteration, lm_sgd_loss$loss.func, main = "lm_sgd iteration vs loss function")
+plot(lm_gd_loss$iteration, lm_gd_loss$loss.func, main = "lm_gd iteration vs loss function")
+```
+
+### 1.3
+
+```{r Q1.3, message=F, echo=T, warning=F}
+### -----------------------------------------------------------
+### Q1.3
+library(purrr)
+
+n = 30
+p = 1
+
+beta = rep(2,p+1)
+
+x = cbind(rep(1,n), matrix(rnorm(n*p),n,p))
+epsilon = rnorm(n,0,0.1)
+
+y = x%*%beta + epsilon
+
+beta_init <- map(1:20, function(x) runif(p+1))
+beta_sgd <- map(beta_init, 
+      function(betainit) lm_sgd(x,y,learn_rate=0.05,niter=50,beta_init=betainit,batch=3,verbose = F))
+
+est_error <- map(beta_sgd, function(x) sum((x - beta)^2))
+est_error
+```
+
+## Problem 2: the with() and within() functions
+
+### 2.1  
+
+```{r Q2.1, message=F, echo=T, warning=F}
+### -----------------------------------------------------------
+### Q2.1
+library(MASS)
+data(anorexia)
+
+par(mfrow=c(1,2))
+xrange <- with(anorexia, range(c(Prewt,Postwt)))
+with(anorexia, hist(Prewt, xlim=xrange))
+with(anorexia, hist(Postwt, xlim=xrange))
+```
+
+### 2.2 
+
+```{r Q2.2, message=F, echo=T}
+### -----------------------------------------------------------
+### Q2.2
+anorexia3 <- within(anorexia, c(Prewt <- round(Prewt),Postwt <- round(Postwt),
+                                gain.over.10 <- ifelse(((Postwt-Prewt)/Prewt)>0.1,1,0),
+                                lose.over.10 <- ifelse(((Postwt-Prewt)/Prewt)<(-0.1),1,0)))
+head(anorexia3)
+```
+
+\pagebreak
+
+## Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```

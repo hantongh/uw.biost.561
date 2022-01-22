@@ -1,0 +1,417 @@
+---
+title: "BIOST 561 Homework 4"
+author: "Hantong Hu"
+date: "05/28/2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r setup, include=FALSE}
+### Setting up the packages, options we'll need:
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Responses 
+
+## Problem 1
+
+### 1.1 
+See appendix for the code.
+
+```{r Q1.1, message=F, echo=F}
+### -----------------------------------------------------------
+### Q1.1
+sigmoid = function(x){
+  return(1/(1+exp(-x)))
+}
+
+shallow_net <- function(p, q, seed=1) {
+  if (!is.numeric(p) & !is.numeric(q)) stop("p and q must be numeric")
+  
+  set.seed(seed)
+  beta <- 0.1*runif(q+1, -0.5, 0.5)
+  theta <- replicate(q, 0.1*runif(p+1, -0.5, 0.5))
+  
+  structure(list(beta=beta, theta=theta), class = "shallow_net")
+}
+
+predict <- function(sn, X){
+  if (class(sn) != "shallow_net") stop("Parameter must be an object of type shallow_net")
+  
+  theta = sn$theta
+  beta = sn$beta
+  n2 = nrow(X)
+  
+  X = cbind(rep(1, n2), X)
+  zeta = X %*% theta
+  A = sigmoid(zeta)
+  A_aug = cbind(rep(1, n2), A)
+  f_hat = sigmoid(A_aug %*% beta)
+  return(f_hat)
+}
+
+train <- function(X, y, sn, learn_rate = 0.01, n_iter = 200){
+  # X: data matrix
+  # y: response vector
+  # q: number of hidden nodes
+  # learn_rate: learning rate
+  # n_iter: number of iterations
+  
+  n = nrow(X)
+  p = ncol(X)
+  theta = sn$theta
+  beta = sn$beta
+  q = length(beta) - 1
+  
+  for(it in 1:n_iter){
+    X_aug = cbind(rep(1, n), X)
+    zeta = X_aug %*% theta
+    A = sigmoid(zeta)
+    A_aug = cbind(rep(1, n), A)
+    f_hat = sigmoid(A_aug %*% beta)
+    
+    
+    dL_dbeta = (1/n)*(t(A_aug) %*% (f_hat - y))
+    dL_dtheta <- matrix(rep(NA, (p+1)*q), ncol = q)
+    
+    p_minus_y = f_hat - y
+    sum_theta = matrix(0, nrow = p+1, ncol = q)
+    for(i in 1:n){
+      sum_theta = sum_theta + X_aug[i,]%*%t(p_minus_y[i]*A[i,]*(1-A[i,])*beta[-1])
+    }
+    dL_dtheta = sum_theta/n
+    
+    
+    theta_old <- theta
+    beta_old <- beta
+    
+    beta <- beta - learn_rate*dL_dbeta
+    theta <- theta - learn_rate*dL_dtheta
+  }
+  
+  out <- list(
+    beta = beta,
+    theta = theta, 
+    init_theta = sn$theta,
+    init_beta = sn$beta
+  )
+  return(out)
+}
+```
+
+
+### 1.3
+
+See appendix for the code. The results generated from the two methods in both examples are the same.
+
+```{r Q1.3, message=F, echo=F, eval=F}
+### -----------------------------------------------------------
+### Q1.3
+f_hat_func <- function(theta, beta, X){
+  n = nrow(X)
+  X = cbind(rep(1, n), X)
+  zeta = X %*% theta
+  A = sigmoid(zeta)
+  A_aug = cbind(rep(1, n), A)
+  f_hat = sigmoid(A_aug %*% beta)
+  return(f_hat)
+}
+
+shallow_NN <- function(X, y, q = 3, learn_rate = 0.01, n_iter = 200, init_beta, init_theta){
+  # X: data matrix
+  # y: response vector
+  # q: number of hidden nodes
+  # learn_rate: learning rate
+  # n_iter: number of iterations
+  
+  n = nrow(X)
+  p = ncol(X)
+  theta = init_theta
+  beta = init_beta
+  
+  
+  for(it in 1:n_iter){
+    X_aug = cbind(rep(1, n), X)
+    zeta = X_aug %*% theta
+    A = sigmoid(zeta)
+    A_aug = cbind(rep(1, n), A)
+    f_hat = sigmoid(A_aug %*% beta)
+    
+    
+    dL_dbeta = (1/n)*(t(A_aug) %*% (f_hat - y))
+    dL_dtheta <- matrix(rep(NA, (p+1)*q), ncol = q)
+    
+    p_minus_y = f_hat - y
+    sum_theta = matrix(0, nrow = p+1, ncol = q)
+    for(i in 1:n){
+      sum_theta = sum_theta + X_aug[i,]%*%t(p_minus_y[i]*A[i,]*(1-A[i,])*beta[-1])
+    }
+    dL_dtheta = sum_theta/n
+    
+    
+    theta_old <- theta
+    beta_old <- beta
+    
+    beta <- beta - learn_rate*dL_dbeta
+    theta <- theta - learn_rate*dL_dtheta
+  }
+  
+  out <- list(
+    beta = beta,
+    theta = theta, 
+    init_theta = init_theta,
+    init_beta = init_beta
+  )
+  return(out)
+}
+
+
+## Rerun Example 1
+n = 100
+sn_test1 <- shallow_net(1,4)
+
+set.seed(1)
+X <- as.matrix(runif(n,-2,2))
+y_prob = sigmoid(2 - 3 * X^2) 
+y = rbinom(n,1,y_prob)
+
+X_grid = as.matrix(seq(-2,2,length.out = 100))
+y_prob_grid = sigmoid(2 - 3 * X_grid^2)
+
+
+# Original
+init_beta = sn_test1$beta
+init_theta = sn_test1$theta
+
+nn_model <- shallow_NN(X, y, q=4, learn_rate = 0.3, n_iter = 30000, init_beta, init_theta)
+y_prob_grid_hat_nn <- f_hat_func(nn_model$theta, nn_model$beta, X_grid)
+
+# New
+train_model <- train(X, y, sn_test1, learn_rate = 0.3, n_iter = 30000)
+y_prob_grid_hat_train <- f_hat_func(train_model$theta, train_model$beta, X_grid)
+
+
+## Rerun Example 2
+n = 200
+sn_test2 <- shallow_net(1,8)
+
+set.seed(1)
+X <- as.matrix(runif(n,-2,2))
+y_prob = sigmoid(3 + X - 3*X^2 + 3*cos(4*X))
+y = rbinom(n,1,y_prob)
+
+X_grid = as.matrix(seq(-2,2,length.out = 100))
+y_prob_grid = sigmoid(3 + X_grid - 3*X_grid^2 + 3*cos(4*X_grid))
+
+# Original
+init_beta = sn_test2$beta
+init_theta = sn_test2$theta
+
+nn_model <- shallow_NN(X, y, q=8, learn_rate = 0.5, n_iter = 30000, init_beta, init_theta)
+y_prob_grid_hat_nn <- f_hat_func(nn_model$theta, nn_model$beta, X_grid)
+
+# New
+train_model <- train(X, y, sn_test2, learn_rate = 0.5, n_iter = 30000)
+y_prob_grid_hat_train <- f_hat_func(train_model$theta, train_model$beta, X_grid)
+```
+
+
+## Problem 2
+
+### 2.1  
+
+This process is very time-consuming if iterated for a large number of times. The "t" (transpose) took a very large proportion of the total processin time.
+
+```{r Q2.1, message=F, echo=F, warning=F}
+### -----------------------------------------------------------
+### Q2.1
+library(microbenchmark)
+
+n = 100
+sn_test1 <- shallow_net(1,4)
+
+set.seed(1)
+X <- as.matrix(runif(n,-2,2))
+y_prob = sigmoid(2 - 3 * X^2) 
+y = rbinom(n,1,y_prob)
+
+
+tmp1 <- tempfile()
+Rprof(tmp1)
+train_model <- train(X, y, sn_test1, learn_rate = 0.3, n_iter = 10000)
+Rprof(NULL)
+summaryRprof(tmp1)
+```
+
+### 2.2 
+
+```{r Q2.2, message=F, echo=T, warning=F}
+### -----------------------------------------------------------
+### Q2.2
+# The matrix X passed has an intercept column (i.e. this is X_aug)
+# The matrix A passed has an intercept column
+library(Rcpp)
+Rcpp::cppFunction(
+" NumericVector compute_gradient_theta(NumericMatrix X,
+NumericVector f_hat,
+NumericVector y,
+NumericVector beta,
+NumericMatrix A) {
+
+  int q = beta.size() - 1, p = X.ncol(), n = X.nrow(); // Compute q,p, and n
+  NumericMatrix dL_dtheta(p, q); // Matrix with gradient of theta
+
+  double sum_theta;
+  
+  for(int l = 0; l < q; l++){
+    for(int j = 0; j < p; j++){
+      sum_theta = 0;
+      
+      for(int i = 0; i < n; i++){
+        sum_theta = sum_theta + (f_hat(i) - y(i))*A(i,l)*(1-A(i,l))*beta(l+1)*X(i,j);
+      }
+      
+      dL_dtheta(j,l) = sum_theta/n;
+    }
+  }
+
+  return dL_dtheta;
+}
+")
+
+
+```
+
+### 2.3 
+
+```{r Q2.3, message=F, echo=T}
+### -----------------------------------------------------------
+### Q2.3
+train_fast <- function(X, y, sn, learn_rate = 0.01, n_iter = 200){
+  # X: data matrix
+  # y: response vector
+  # q: number of hidden nodes
+  # learn_rate: learning rate
+  # n_iter: number of iterations
+  
+  n = nrow(X)
+  p = ncol(X)
+  theta = sn$theta
+  beta = sn$beta
+  q = length(beta) - 1
+  
+  for(it in 1:n_iter){
+    X_aug = cbind(rep(1, n), X)
+    zeta = X_aug %*% theta
+    A = sigmoid(zeta)
+    A_aug = cbind(rep(1, n), A)
+    f_hat = sigmoid(A_aug %*% beta)
+    
+    
+    dL_dbeta = (1/n)*(t(A_aug) %*% (f_hat - y))
+    dL_dtheta <- compute_gradient_theta(X_aug, f_hat, y, beta, A)
+    
+    
+    theta_old <- theta
+    beta_old <- beta
+    
+    beta <- beta - learn_rate*dL_dbeta
+    theta <- theta - learn_rate*dL_dtheta
+  }
+  
+  out <- list(
+    beta = beta,
+    theta = theta, 
+    init_theta = sn$theta,
+    init_beta = sn$beta
+  )
+  return(out)
+}
+```
+
+### 2.4
+The two methods give the same results for both the examples. I used the data in example 1 to test the performances of the two methods. The "train" method is slow with about 35 seconds of processing time, and the "t" (transpose) took a lot of time. The "train_fast" method is very fast with less than 2 seconds of processing time, and the most time-consuming process within it is the sigmoid process, but that only took less than 1 second.
+
+```{r Q2.4, message=F, echo=F}
+### -----------------------------------------------------------
+### Q2.4
+f_hat_func <- function(theta, beta, X){
+  n = nrow(X)
+  X = cbind(rep(1, n), X)
+  zeta = X %*% theta
+  A = sigmoid(zeta)
+  A_aug = cbind(rep(1, n), A)
+  f_hat = sigmoid(A_aug %*% beta)
+  return(f_hat)
+}
+
+## Rerun Example 1
+n = 100
+sn_test1 <- shallow_net(1,4)
+
+set.seed(1)
+X <- as.matrix(runif(n,-2,2))
+y_prob = sigmoid(2 - 3 * X^2) 
+y = rbinom(n,1,y_prob)
+
+X_grid = as.matrix(seq(-2,2,length.out = 100))
+y_prob_grid = sigmoid(2 - 3 * X_grid^2)
+
+# Train
+train_model1 <- train(X, y, sn_test1, learn_rate = 0.3, n_iter = 30000)
+y_prob_grid_hat_train1 <- f_hat_func(train_model1$theta, train_model1$beta, X_grid)
+
+# Train_fast
+train_fast_model1 <- train_fast(X, y, sn_test1, learn_rate = 0.3, n_iter = 30000)
+y_prob_grid_hat_train_fast1 <- f_hat_func(train_fast_model1$theta, train_fast_model1$beta, X_grid)
+
+# y_prob_grid_hat_train1 == y_prob_grid_hat_train_fast1
+
+## Rerun Example 2
+n = 200
+sn_test2 <- shallow_net(1,8)
+
+set.seed(1)
+X <- as.matrix(runif(n,-2,2))
+y_prob = sigmoid(3 + X - 3*X^2 + 3*cos(4*X))
+y = rbinom(n,1,y_prob)
+
+X_grid = as.matrix(seq(-2,2,length.out = 100))
+y_prob_grid = sigmoid(3 + X_grid - 3*X_grid^2 + 3*cos(4*X_grid))
+
+# Train
+train_model2 <- train(X, y, sn_test2, learn_rate = 0.5, n_iter = 30000)
+y_prob_grid_hat_train2 <- f_hat_func(train_model2$theta, train_model2$beta, X_grid)
+
+# Train_fast
+train_fast_model2 <- train_fast(X, y, sn_test2, learn_rate = 0.5, n_iter = 30000)
+y_prob_grid_hat_train_fast2 <- f_hat_func(train_fast_model2$theta, train_fast_model2$beta, X_grid)
+
+# y_prob_grid_hat_train2 == y_prob_grid_hat_train_fast2
+
+
+tmp1.1 <- tempfile()
+Rprof(tmp1.1)
+train_model1 <- train(X, y, sn_test1, learn_rate = 0.3, n_iter = 30000)
+Rprof(NULL)
+summaryRprof(tmp1.1)
+
+tmp1.2 <- tempfile()
+Rprof(tmp1.2)
+train_model1 <- train_fast(X, y, sn_test1, learn_rate = 0.3, n_iter = 30000)
+Rprof(NULL)
+summaryRprof(tmp1.2)
+```
+
+
+
+\pagebreak
+
+## Code Appendix
+
+```{r, ref.label=knitr::all_labels(),echo=TRUE,eval=FALSE}
+```
